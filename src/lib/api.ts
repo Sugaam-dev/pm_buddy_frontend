@@ -58,10 +58,20 @@ class ApiClient {
   }
 
   // Auth
-  async login(email: string): Promise<{ access_token: string; user: any }> {
+  async login(email: string, password: string = "demo123"): Promise<{ access_token: string; user: any }> {
     const res = await this.publicRequest<{ access_token: string; user: any }>("/api/v1/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password }),
+    });
+    this.setToken(res.access_token);
+    this.setOrganization(res.user.organization_id);
+    return res;
+  }
+
+  async signup(name: string, email: string, password: string): Promise<{ access_token: string; user: any }> {
+    const res = await this.publicRequest<{ access_token: string; user: any }>("/api/v1/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password }),
     });
     this.setToken(res.access_token);
     this.setOrganization(res.user.organization_id);
@@ -78,6 +88,10 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify({ prompt, conversation_id: conversationId }),
     });
+  }
+
+  async getChatHistory(conversationId?: string): Promise<{ conversation_id: string | null; messages: any[] }> {
+    return this.request(`/api/v1/chat/history${conversationId ? `?conversation_id=${conversationId}` : ""}`);
   }
 
   // HITL Actions

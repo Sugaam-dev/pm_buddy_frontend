@@ -326,12 +326,25 @@ function ActionConfirmationBlock({
 
       {block.data && (
         <div className="mt-3 p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-xs font-mono text-slate-300 space-y-1">
-          {Object.entries(block.data).map(([k, v]) => (
-            <div key={k} className="flex justify-between">
-              <span className="text-slate-400 capitalize">{k.replace("_", " ")}:</span>
-              <span className="text-white font-medium">{String(v)}</span>
-            </div>
-          ))}
+          {Object.entries(block.data).map(([k, v]) => {
+            let displayVal = String(v);
+            if (typeof v === "string" && (k.includes("time") || k.includes("date"))) {
+              try {
+                const d = new Date(v);
+                if (!isNaN(d.getTime())) {
+                  displayVal = `${d.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" })} ${d.toLocaleTimeString("en-US", { timeZone: "UTC", hour: "2-digit", minute: "2-digit" })} UTC`;
+                }
+              } catch {}
+            } else if (Array.isArray(v)) {
+              displayVal = v.join(", ");
+            }
+            return (
+              <div key={k} className="flex justify-between items-center gap-2">
+                <span className="text-slate-400 capitalize shrink-0">{k.replace("_", " ")}:</span>
+                <span className="text-white font-medium text-right truncate">{displayVal}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 

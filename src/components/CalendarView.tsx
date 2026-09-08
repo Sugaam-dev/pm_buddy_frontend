@@ -17,6 +17,7 @@ import {
   Search,
   MapPin,
   Lock,
+  RotateCw,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -144,7 +145,83 @@ export function CalendarView() {
     setCurrentDate(prev);
   };
 
+  const getDateString = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const isEventOnDate = (event: CalendarEvent, targetDate: Date) => {
+    const targetStr = getDateString(targetDate);
+    if (event.start_time.startsWith(targetStr)) return true;
+    const evtDate = new Date(event.start_time);
+    const evtUtcStr = `${evtDate.getUTCFullYear()}-${String(evtDate.getUTCMonth() + 1).padStart(2, "0")}-${String(evtDate.getUTCDate()).padStart(2, "0")}`;
+    return evtUtcStr === targetStr || getDateString(evtDate) === targetStr;
+  };
+
+  const formatEventTime = (isoString: string) => {
+    try {
+      return new Date(isoString).toLocaleTimeString("en-US", {
+        timeZone: "UTC",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return isoString;
+    }
+  };
+
+  const formatEventDateTime = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      const datePart = d.toLocaleDateString("en-US", {
+        timeZone: "UTC",
+        month: "numeric",
+        day: "numeric",
+        year: "numeric",
+      });
+      const timePart = d.toLocaleTimeString("en-US", {
+        timeZone: "UTC",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      return `${datePart}, ${timePart}`;
+    } catch {
+      return isoString;
+    }
+  };
+
+  const getWeekDays = (baseDate: Date) => {
+    const d = new Date(baseDate);
+    const day = d.getDay(); // 0 is Sunday
+    const sunday = new Date(d);
+    sunday.setDate(d.getDate() - day);
+    const week: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      const nextDay = new Date(sunday);
+      nextDay.setDate(sunday.getDate() + i);
+      week.push(nextDay);
+    }
+    return week;
+  };
+
   const formatPeriodLabel = () => {
+    if (viewMode === "day") {
+      return currentDate.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+    if (viewMode === "week") {
+      const week = getWeekDays(currentDate);
+      const start = week[0].toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const end = week[6].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      return `${start} – ${end}`;
+    }
     return currentDate.toLocaleDateString("en-US", {
       month: "long",
       year: "numeric",
@@ -238,6 +315,15 @@ export function CalendarView() {
           >
             Today
           </button>
+          <button
+            onClick={fetchEvents}
+            disabled={loading}
+            title="Refresh events"
+            className="ml-1 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1.5 text-xs font-medium"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
 
         <div className="text-xs text-slate-400 font-mono flex items-center gap-3">
@@ -273,15 +359,15 @@ export function CalendarView() {
             {/* Month Day Cells */}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const dayNum = i + 1;
-              const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
-              const dayEvents = events.filter((e) => e.start_time.startsWith(dateStr));
+              const cellDate = new Date(year, month, dayNum);
+              const dayEvents = events.filter((e) => isEventOnDate(e, cellDate));
               const isToday = dayNum === 7 && month === 8;
 
               return (
                 <div
                   key={dayNum}
                   onClick={() => {
-                    setCurrentDate(new Date(year, month, dayNum));
+                    setCurrentDate(cellDate);
                     setViewMode("day");
                   }}
                   className={`min-h-[105px] border-b border-r border-slate-800/60 p-2 hover:bg-slate-850/50 cursor-pointer transition flex flex-col justify-between ${
@@ -304,7 +390,7 @@ export function CalendarView() {
                   </div>
 
                   <div className="space-y-1 mt-1 flex-1">
-                    {dayEvents.slice(0, 2).map((evt) => (
+                    {dayEvents.slice(0, 3).map((evt) => (
                       <div
                         key={evt.id}
                         onClick={(e) => {
@@ -316,10 +402,17 @@ export function CalendarView() {
                         {evt.title}
                       </div>
                     ))}
-                    {dayEvents.length > 2 && (
-                      <div className="text-[10px] text-slate-400 font-medium pl-1">
-                        +{dayEvents.length - 2} more
-                      </div>
+                    {dayEvents.length > 3 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentDate(cellDate);
+                          setViewMode("day");
+                        }}
+                        className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium pl-1 hover:underline text-left block w-full"
+                      >
+                        +{dayEvents.length - 3} more
+                      </button>
                     )}
                   </div>
                 </div>
@@ -348,8 +441,8 @@ export function CalendarView() {
                 >
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex flex-col items-center justify-center text-indigo-300 shrink-0">
-                      <span className="text-[10px] uppercase font-bold">{startDt.toLocaleString("default", { month: "short" })}</span>
-                      <span className="text-base font-extrabold leading-none">{startDt.getDate()}</span>
+                      <span className="text-[10px] uppercase font-bold">{new Date(evt.start_time).toLocaleString("en-US", { timeZone: "UTC", month: "short" })}</span>
+                      <span className="text-base font-extrabold leading-none">{new Date(evt.start_time).getUTCDate()}</span>
                     </div>
 
                     <div>
@@ -367,8 +460,7 @@ export function CalendarView() {
                       <div className="flex items-center gap-4 mt-2 text-[11px] text-slate-400">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                          {startDt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} -{" "}
-                          {endDt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} UTC
+                          {formatEventTime(evt.start_time)} - {formatEventTime(evt.end_time)} UTC
                         </span>
                         <span className="flex items-center gap-1">
                           <Users className="w-3.5 h-3.5 text-slate-400" />
@@ -403,24 +495,95 @@ export function CalendarView() {
         </div>
       )}
 
-      {/* 3. DAY / WEEK VIEW TIMELINE */}
-      {(viewMode === "day" || viewMode === "week") && (
+      {/* 3. WEEK VIEW */}
+      {viewMode === "week" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+            {getWeekDays(currentDate).map((dayDate, idx) => {
+              const dayEvents = events.filter((e) => isEventOnDate(e, dayDate));
+              const isSelected = getDateString(dayDate) === getDateString(currentDate);
+              const isToday = dayDate.getDate() === 7 && dayDate.getMonth() === 8;
+
+              return (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    setCurrentDate(dayDate);
+                    setViewMode("day");
+                  }}
+                  className={`border rounded-2xl p-3 cursor-pointer transition flex flex-col min-h-[220px] ${
+                    isSelected
+                      ? "border-indigo-500 bg-indigo-950/20 shadow-md shadow-indigo-900/10"
+                      : "border-slate-800 bg-slate-900/60 hover:bg-slate-850/50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-2">
+                    <span className="text-xs font-semibold text-slate-300">
+                      {dayDate.toLocaleDateString("en-US", { weekday: "short" })}
+                    </span>
+                    <span
+                      className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
+                        isToday
+                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/40"
+                          : isSelected
+                          ? "bg-slate-700 text-white"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      {dayDate.getDate()}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 flex-1">
+                    {dayEvents.length === 0 ? (
+                      <div className="text-[10px] text-slate-500 italic py-2 text-center">
+                        No events
+                      </div>
+                    ) : (
+                      dayEvents.map((evt) => (
+                        <div
+                          key={evt.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEvent(evt);
+                          }}
+                          className="p-2 rounded-xl bg-slate-800/90 hover:bg-indigo-950/60 border border-slate-700/60 hover:border-indigo-500/50 transition text-left"
+                        >
+                          <div className="text-[11px] font-semibold text-white truncate">
+                            {evt.title}
+                          </div>
+                          <div className="text-[10px] text-indigo-300 font-mono mt-0.5">
+                            {formatEventTime(evt.start_time)} UTC
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 4. DAY VIEW TIMELINE */}
+      {viewMode === "day" && (
         <div className="border border-slate-800 rounded-2xl bg-slate-900/60 p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-indigo-400" /> Day Timeline ({currentDate.toDateString()})
+              <Clock className="w-4 h-4 text-indigo-400" /> Day Timeline ({currentDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })})
             </h3>
             <span className="text-xs text-slate-400 font-mono">Working Hours: 09:00 AM - 06:00 PM UTC</span>
           </div>
 
           <div className="space-y-2">
-            {events.filter((e) => e.start_time.startsWith(currentDate.toISOString().slice(0, 10))).length === 0 ? (
+            {events.filter((e) => isEventOnDate(e, currentDate)).length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-400">
                 No meetings scheduled on this day.
               </div>
             ) : (
               events
-                .filter((e) => e.start_time.startsWith(currentDate.toISOString().slice(0, 10)))
+                .filter((e) => isEventOnDate(e, currentDate))
                 .map((evt) => (
                   <div
                     key={evt.id}
@@ -431,8 +594,7 @@ export function CalendarView() {
                       <div className="text-xs font-bold text-white">{evt.title}</div>
                       <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-3">
                         <span>
-                          {new Date(evt.start_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} -{" "}
-                          {new Date(evt.end_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {formatEventTime(evt.start_time)} - {formatEventTime(evt.end_time)} UTC
                         </span>
                         <span>Attendees: {evt.attendees?.join(", ")}</span>
                       </div>
@@ -554,8 +716,8 @@ export function CalendarView() {
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-indigo-400 shrink-0" />
                 <span>
-                  {new Date(selectedEvent.start_time).toLocaleString()} -{" "}
-                  {new Date(selectedEvent.end_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {formatEventDateTime(selectedEvent.start_time)} -{" "}
+                  {formatEventTime(selectedEvent.end_time)} UTC
                 </span>
               </div>
 

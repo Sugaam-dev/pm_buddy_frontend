@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Bot, Send, Sparkles, User } from "lucide-react";
+import { Bot, RotateCcw, Send, Sparkles, User } from "lucide-react";
 import { AIResponse, StructuredBlock } from "@/types/api";
 import { StructuredBlocksRenderer } from "./StructuredBlocks";
 import { api } from "@/lib/api";
@@ -13,33 +13,82 @@ interface Message {
   blocks?: StructuredBlock[];
 }
 
+const INITIAL_MESSAGES: Message[] = [
+  {
+    id: "initial-1",
+    sender: "assistant",
+    text: "Hello Alice, I'm **PM Buddy**, your AI operational and governance partner. How can I assist with your delivery priorities and portfolio governance today?",
+    blocks: [
+      {
+        type: "recommendation",
+        title: "Suggested Inquiries",
+        items: [
+          {"label": "What should I do first today?", "action": "my_work"},
+          {"label": "Show me the dashboard for Project Alpha", "action": "project_alpha"},
+          {"label": "What approvals have breached SLA?", "action": "breached_approvals"},
+          {"label": "Find a suitable time for an architecture review with Rahul", "action": "schedule_rahul"},
+        ],
+      },
+    ],
+  },
+];
+
 export function PMBuddyChat() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "initial-1",
-      sender: "assistant",
-      text: "Hello Alice, I'm **PM Buddy**, your AI operational and governance partner. How can I assist with your delivery priorities and portfolio governance today?",
-      blocks: [
-        {
-          type: "recommendation",
-          title: "Suggested Inquiries",
-          items: [
-            {"label": "What should I do first today?", "action": "my_work"},
-            {"label": "Show me the dashboard for Project Alpha", "action": "project_alpha"},
-            {"label": "What approvals have breached SLA?", "action": "breached_approvals"},
-            {"label": "Find a suitable time for an architecture review with Rahul", "action": "schedule_rahul"},
-          ],
-        },
-      ],
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+  const [conversationId, setConversationId] = useState<string>("");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isLoadedRef = useRef(false);
+
+  // Restore chat messages and conversation ID from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedMessages = localStorage.getItem("pm_buddy_chat_messages");
+      if (savedMessages) {
+        const parsed = JSON.parse(savedMessages);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        }
+      }
+      let savedConvId = localStorage.getItem("pm_buddy_conversation_id");
+      if (!savedConvId) {
+        savedConvId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `conv-${Date.now()}`;
+        localStorage.setItem("pm_buddy_conversation_id", savedConvId);
+      }
+      setConversationId(savedConvId);
+    } catch (err) {
+      console.warn("Could not load chat messages from localStorage", err);
+    } finally {
+      isLoadedRef.current = true;
+    }
+  }, []);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    try {
+      localStorage.setItem("pm_buddy_chat_messages", JSON.stringify(messages));
+    } catch (err) {
+      console.warn("Could not save chat messages to localStorage", err);
+    }
+  }, [messages]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const handleClearChat = () => {
+    const newConvId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `conv-${Date.now()}`;
+    setConversationId(newConvId);
+    setMessages(INITIAL_MESSAGES);
+    try {
+      localStorage.removeItem("pm_buddy_chat_messages");
+      localStorage.setItem("pm_buddy_conversation_id", newConvId);
+    } catch {
+      // ignore
+    }
+  };
 
   const handleSendMessage = async (textToSend?: string) => {
     const prompt = textToSend || input;
@@ -56,7 +105,7 @@ export function PMBuddyChat() {
     setLoading(true);
 
     try {
-      const res: AIResponse = await api.sendChatMessage(prompt);
+      const res: AIResponse = await api.sendChatMessage(prompt, conversationId || undefined);
       const assistantMessage: Message = {
         id: `assistant-${Date.now()}`,
         sender: "assistant",
@@ -96,6 +145,15 @@ export function PMBuddyChat() {
             <p className="text-xs text-slate-400">Embedded Operational Intelligence & Governance</p>
           </div>
         </div>
+
+        <button
+          onClick={handleClearChat}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition shadow-sm"
+          title="Clear chat and start a new session"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>New Chat</span>
+        </button>
       </div>
 
       {/* Message Feed */}

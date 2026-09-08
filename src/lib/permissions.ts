@@ -29,7 +29,7 @@ export function canAccessTab(user: UserPersona | null, tabId: string): boolean {
     case "calendar":
       return hasPermission(user, "calendar.read");
     case "knowledge":
-      return hasPermission(user, "knowledge.read");
+      return hasPermission(user, "knowledge.read") || hasPermission(user, "project.read");
     case "action_center":
       return true; // Action center is visible to all authenticated personas
     case "chat":
