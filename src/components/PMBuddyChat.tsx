@@ -6,6 +6,8 @@ import { AIResponse, StructuredBlock } from "@/types/api";
 import { StructuredBlocksRenderer } from "./StructuredBlocks";
 import { api } from "@/lib/api";
 
+import { useAuth } from "@/lib/auth-context";
+
 interface Message {
   id: string;
   sender: "user" | "assistant";
@@ -13,20 +15,20 @@ interface Message {
   blocks?: StructuredBlock[];
 }
 
-const INITIAL_MESSAGES: Message[] = [
+const getInitialMessages = (name?: string): Message[] => [
   {
     id: "initial-1",
     sender: "assistant",
-    text: "Hello Alice, I'm **PM Buddy**, your AI operational and governance partner. How can I assist with your delivery priorities and portfolio governance today?",
+    text: `Hello ${name || "there"}, I'm **PM Buddy**, your AI operational and governance partner. How can I assist with your delivery priorities and portfolio governance today?`,
     blocks: [
       {
         type: "recommendation",
         title: "Suggested Inquiries",
         items: [
           {"label": "What should I do first today?", "action": "my_work"},
-          {"label": "Show me the dashboard for Project Alpha", "action": "project_alpha"},
+          {"label": "Show me active tasks and tickets", "action": "my_work"},
           {"label": "What approvals have breached SLA?", "action": "breached_approvals"},
-          {"label": "Find a suitable time for an architecture review with Rahul", "action": "schedule_rahul"},
+          {"label": "Find a suitable time for a project sync", "action": "schedule_sync"},
         ],
       },
     ],
@@ -34,57 +36,71 @@ const INITIAL_MESSAGES: Message[] = [
 ];
 
 export function PMBuddyChat() {
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+  const { currentUser } = useAuth();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string>("");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const isLoadedRef = useRef(false);
 
-  // Restore chat messages and conversation ID from localStorage on mount
+  const storageKey = currentUser ? `pm_buddy_chat_${currentUser.organization_id}_${currentUser.user_id}` : null;
+  const convKey = currentUser ? `pm_buddy_conv_${currentUser.organization_id}_${currentUser.user_id}` : null;
+
+  // Restore chat messages and conversation ID namespaced strictly by authenticated user
   useEffect(() => {
+    if (!currentUser) {
+      setMessages([]);
+      setConversationId("");
+      setIsInitialized(false);
+      return;
+    }
+
+    const initial = getInitialMessages(currentUser.name);
     try {
-      const savedMessages = localStorage.getItem("pm_buddy_chat_messages");
+      const savedMessages = storageKey ? localStorage.getItem(storageKey) : null;
       if (savedMessages) {
         const parsed = JSON.parse(savedMessages);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setMessages(parsed);
+        } else {
+          setMessages(initial);
         }
+      } else {
+        setMessages(initial);
       }
-      let savedConvId = localStorage.getItem("pm_buddy_conversation_id");
-      if (!savedConvId) {
-        savedConvId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `conv-${Date.now()}`;
-        localStorage.setItem("pm_buddy_conversation_id", savedConvId);
-      }
-      setConversationId(savedConvId);
+
+      const savedConvId = convKey ? localStorage.getItem(convKey) : null;
+      setConversationId(savedConvId || "");
     } catch (err) {
       console.warn("Could not load chat messages from localStorage", err);
+      setMessages(initial);
     } finally {
-      isLoadedRef.current = true;
+      setIsInitialized(true);
     }
-  }, []);
+  }, [currentUser?.user_id, currentUser?.organization_id]);
 
-  // Save messages to localStorage whenever they change
+  // Save messages to localStorage namespaced strictly to current user
   useEffect(() => {
-    if (!isLoadedRef.current) return;
+    if (!isInitialized || !storageKey) return;
     try {
-      localStorage.setItem("pm_buddy_chat_messages", JSON.stringify(messages));
+      localStorage.setItem(storageKey, JSON.stringify(messages));
     } catch (err) {
       console.warn("Could not save chat messages to localStorage", err);
     }
-  }, [messages]);
+  }, [messages, isInitialized, storageKey]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleClearChat = () => {
-    const newConvId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `conv-${Date.now()}`;
-    setConversationId(newConvId);
-    setMessages(INITIAL_MESSAGES);
+    setConversationId("");
+    const initial = getInitialMessages(currentUser?.name);
+    setMessages(initial);
     try {
-      localStorage.removeItem("pm_buddy_chat_messages");
-      localStorage.setItem("pm_buddy_conversation_id", newConvId);
+      if (storageKey) localStorage.removeItem(storageKey);
+      if (convKey) localStorage.removeItem(convKey);
     } catch {
       // ignore
     }
@@ -106,6 +122,16 @@ export function PMBuddyChat() {
 
     try {
       const res: AIResponse = await api.sendChatMessage(prompt, conversationId || undefined);
+      if (res.conversation_id) {
+        setConversationId(res.conversation_id);
+        if (convKey) {
+          try {
+            localStorage.setItem(convKey, res.conversation_id);
+          } catch {
+            // ignore
+          }
+        }
+      }
       const assistantMessage: Message = {
         id: `assistant-${Date.now()}`,
         sender: "assistant",
@@ -114,6 +140,16 @@ export function PMBuddyChat() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err: any) {
+      if (err.message && err.message.includes("Conversation not found")) {
+        setConversationId("");
+        if (convKey) {
+          try {
+            localStorage.removeItem(convKey);
+          } catch {
+            // ignore
+          }
+        }
+      }
       setMessages((prev) => [
         ...prev,
         {

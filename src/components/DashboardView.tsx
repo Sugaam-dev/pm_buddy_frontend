@@ -116,6 +116,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const isCTO = role === "cto";
   const isLead = role === "team_lead";
   const isEngineer = role === "engineer";
+  const isClientOperator = role === "client_operator" || role === "client_ai_admin";
 
   const atRiskCount = projects.filter((p) => p.health === "at_risk" || p.health === "caution").length;
   const breachedApprovals = approvals.filter((a) => (a as any).is_breached || a.status === "pending");
@@ -144,20 +145,22 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             </span>
           </div>
           <h1 className="text-lg sm:text-xl font-bold text-white mt-1">
+            {isClientOperator && "Client Operational Overview & Partner Workspace"}
             {isAdmin && "Enterprise Organization & Telemetry Hub"}
             {isPM && "Project Delivery & Operational Cockpit"}
             {isCTO && "Executive Technology & Risk Portfolio"}
             {isLead && "Team Execution & Engineering Queue"}
             {isEngineer && "My Active Work & Engineering Priorities"}
-            {isViewer && "Operational Portfolio Overview (Read-Only)"}
+            {isViewer && !isClientOperator && "Operational Portfolio Overview (Read-Only)"}
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
+            {isClientOperator && "Real-time project health, incident ticket submission, meeting schedules, and AI partner coordination."}
             {isAdmin && "System-wide governance, tenant isolation metrics, SLA monitoring, and organization overview."}
             {isPM && "Tracking milestone delivery, blocker resolution, gate approvals, and team calendar alignment."}
             {isCTO && "High-level risk distribution, governance bottlenecks, architecture sign-offs, and budget health."}
             {isLead && "Workload distribution, critical incident triage, active blockers, and daily team syncs."}
             {isEngineer && "Assigned tasks, incident tickets, blocker alerts, and scheduled architectural syncs."}
-            {isViewer && "High-level view of project statuses, risk matrices, and calendar milestones. Mutation disabled."}
+            {isViewer && !isClientOperator && "High-level view of project statuses, risk matrices, and calendar milestones. Mutation disabled."}
           </p>
         </div>
 
@@ -233,6 +236,178 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           icon={AlertTriangle}
         />
       </div>
+
+      {/* ========================================================================= */}
+      {/* ROLE SPECIFIC SECTION: CLIENT OPERATOR VIEW                              */}
+      {/* ========================================================================= */}
+      {isClientOperator && (
+        <div className="space-y-6">
+          {/* Quick Actions Bar for Client */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/40 via-slate-900/60 to-cyan-950/40 border border-cyan-800/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  Client Quick Actions
+                </span>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Engage directly with PM Buddy AI or quickly submit tickets and schedule syncs with engineering.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigateTo("ai")}
+                  className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow transition flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Ask PM Buddy</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigateTo("tickets")}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Create Ticket</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigateTo("calendar")}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                  <span>View Calendar</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Active Projects & Health */}
+            <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider font-mono">
+                  <Layers className="w-4 h-4 text-cyan-400" />
+                  <span>Project Health & Progress</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400">{projects.length} Active</span>
+              </div>
+              <div className="space-y-2.5">
+                {projects.map((proj) => (
+                  <div
+                    key={proj.id}
+                    className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <div className="font-semibold text-slate-200 flex items-center gap-2">
+                        <span>{proj.name}</span>
+                        <span className="text-[10px] font-mono text-slate-500">({proj.key})</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{proj.description}</p>
+                    </div>
+                    <span
+                      className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded border shrink-0 ${
+                        proj.health === "healthy"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                          : "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                      }`}
+                    >
+                      {proj.health}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Upcoming Meetings */}
+            <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider font-mono">
+                  <Calendar className="w-4 h-4 text-blue-400" />
+                  <span>Upcoming Project Meetings</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo("calendar")}
+                  className="text-[10px] text-blue-400 hover:text-blue-300 font-mono transition"
+                >
+                  Full Calendar &rarr;
+                </button>
+              </div>
+              <div className="space-y-2.5">
+                {meetings.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 text-xs text-slate-500 text-center">
+                    No upcoming meetings scheduled. Use Ask PM Buddy to schedule a sync.
+                  </div>
+                ) : (
+                  meetings.slice(0, 4).map((m: any, i: number) => (
+                    <div
+                      key={m.id || i}
+                      className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <span className="font-semibold text-slate-200 block">{m.title}</span>
+                        <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">
+                          {new Date(m.start_time).toLocaleString()}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        Confirmed
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Client Open Tickets & Incidents */}
+            <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-4 lg:col-span-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider font-mono">
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  <span>Support & Incident Tickets</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo("tickets")}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 font-mono transition"
+                >
+                  Manage Tickets &rarr;
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {tickets.slice(0, 4).map((tk) => (
+                  <div
+                    key={tk.id}
+                    className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between text-xs space-y-2"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-slate-200 truncate">{tk.title}</span>
+                        <span
+                          className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded shrink-0 ${
+                            tk.severity === "critical"
+                              ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                              : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          }`}
+                        >
+                          {tk.severity}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{tk.description}</p>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-2 border-t border-slate-900">
+                      <span>Status: {tk.status}</span>
+                      <span>SLA: {tk.sla_status || "Active"}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* ROLE SPECIFIC SECTION 1: ADMIN & CTO EXECUTIVE VIEW                     */}

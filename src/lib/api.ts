@@ -4,7 +4,7 @@ const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 class ApiClient {
   private token: string | null = null;
-  private organizationId: string | null = "11111111-1111-1111-1111-111111111111"; // Acme Corp default
+  private organizationId: string | null = "11111111-1111-1111-1111-111111111111"; // PMRG Solution default
 
   setToken(token: string) {
     this.token = token;
@@ -33,6 +33,17 @@ class ApiClient {
     }
 
     const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+    if (res.status === 401) {
+      this.token = null;
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("pm_token");
+        sessionStorage.removeItem("pm_user");
+        if (!window.location.pathname.startsWith("/login")) {
+          window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+        }
+      }
+      throw new Error("Session expired or unauthorized. Please log in again.");
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(err.detail || `Request failed with status ${res.status}`);
@@ -125,12 +136,87 @@ class ApiClient {
     return this.request(`/api/v1/tasks/?${query.toString()}`);
   }
 
-  async getTickets(): Promise<Ticket[]> {
-    return this.request("/api/v1/tickets/");
+  async createTask(data: {
+    title: string;
+    description?: string;
+    priority?: string;
+    status?: string;
+    due_date?: string;
+    project_id?: string;
+  }): Promise<Task> {
+    return this.request("/api/v1/tasks/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTaskStatus(taskId: string, status: string): Promise<any> {
+    return this.request(`/api/v1/tasks/${taskId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async getTickets(params?: { status?: string; severity?: string }): Promise<Ticket[]> {
+    const query = new URLSearchParams();
+    if (params?.status) query.set("status", params.status);
+    if (params?.severity) query.set("severity", params.severity);
+    return this.request(`/api/v1/tickets/?${query.toString()}`);
+  }
+
+  async getTicket(ticketId: string): Promise<Ticket> {
+    return this.request(`/api/v1/tickets/${ticketId}`);
+  }
+
+  async createTicket(data: {
+    title: string;
+    description?: string;
+    severity?: string;
+    priority?: string;
+    category?: string;
+    status?: string;
+    affected_service?: string;
+  }): Promise<Ticket> {
+    return this.request("/api/v1/tickets/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Tenant AI Configuration
+  async getAIConfig(): Promise<any[]> {
+    return this.request("/api/v1/ai/config");
+  }
+
+  async saveAIConfig(provider: string, apiKey: string): Promise<any> {
+    return this.request("/api/v1/ai/config", {
+      method: "POST",
+      body: JSON.stringify({ provider, api_key: apiKey }),
+    });
+  }
+
+  async deleteAIConfig(provider: string): Promise<any> {
+    return this.request(`/api/v1/ai/config?provider=${encodeURIComponent(provider)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async updateTicketStatus(ticketId: string, status: string): Promise<any> {
+    return this.request(`/api/v1/tickets/${ticketId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
   }
 
   async getApprovals(breachedOnly: boolean = false): Promise<Approval[]> {
     return this.request(`/api/v1/approvals/?breached_only=${breachedOnly}`);
+  }
+
+  async decideApproval(approvalId: string, decision: "approved" | "rejected", notes?: string): Promise<any> {
+    return this.request(`/api/v1/approvals/${approvalId}/decide`, {
+      method: "POST",
+      body: JSON.stringify({ decision, notes }),
+    });
   }
 
   async getRisks(): Promise<Risk[]> {

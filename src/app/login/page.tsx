@@ -4,17 +4,29 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle, Loader2, Sparkles, Building2 } from "lucide-react";
+import { useToast } from "@/components/ui/ToastProvider";
+import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
+
+function sanitizeRedirect(raw: string | null): string {
+  if (!raw) return "/app/dashboard";
+  // Enforce relative path starting with /app/ to prevent open redirect vulnerabilities
+  if (raw.startsWith("/app/") || raw === "/app") {
+    return raw;
+  }
+  return "/app/dashboard";
+}
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/app/dashboard";
+  const redirectPath = sanitizeRedirect(searchParams.get("redirect"));
 
-  const { currentUser, login, personas, loading: authLoading } = useAuth();
+  const { currentUser, login, loading: authLoading } = useAuth();
+  const { toast, alertModal } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -48,21 +60,6 @@ function LoginContent() {
       setErrorMessage(
         err.message || "Unable to sign in. Please check your credentials and try again."
       );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleQuickSelectPersona = async (personaEmail: string) => {
-    setEmail(personaEmail);
-    setPassword("demo123");
-    setErrorMessage(null);
-    setIsSubmitting(true);
-    try {
-      await login(personaEmail, "demo123");
-      router.push(redirectPath);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Failed to authenticate persona.");
     } finally {
       setIsSubmitting(false);
     }
@@ -144,9 +141,14 @@ function LoginContent() {
                   </label>
                   <a
                     href="#forgot-password"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.preventDefault();
-                      alert("For security, password reset requests are governed by your tenant organization administrator.");
+                      await alertModal({
+                        title: "Password Reset Policy",
+                        message: "For enterprise security and strict tenant isolation, password reset requests are governed by your tenant organization administrator. Please contact your organization administrator to issue a credential reset.",
+                        buttonText: "Understood",
+                        variant: "info",
+                      });
                     }}
                     className="text-[11px] text-blue-400 hover:text-blue-300 transition"
                   >
@@ -156,14 +158,26 @@ function LoginContent() {
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     autoComplete="current-password"
                     required
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 transition"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 transition"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition focus:outline-none"
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               </div>
 
@@ -196,86 +210,6 @@ function LoginContent() {
                   Create account
                 </Link>
               </p>
-            </div>
-          </div>
-
-          {/* Quick Demo Persona Switcher (For Evaluation & Review) */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 text-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                Quick-Test Seeded Roles
-              </span>
-              <span className="text-[10px] text-slate-500 font-mono">1-Click Sign In</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickSelectPersona("sarah@acme.com")}
-                className="p-2 text-left rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-purple-500/30 transition group"
-              >
-                <div className="font-medium text-slate-200 text-[11px] group-hover:text-purple-300">Sarah Admin</div>
-                <div className="text-[10px] text-purple-400 font-mono">Role: admin (*)</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickSelectPersona("alice@acme.com")}
-                className="p-2 text-left rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-blue-500/30 transition group"
-              >
-                <div className="font-medium text-slate-200 text-[11px] group-hover:text-blue-300">Alice PM</div>
-                <div className="text-[10px] text-blue-400 font-mono">Role: PM</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickSelectPersona("charlie@acme.com")}
-                className="p-2 text-left rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-amber-500/30 transition group"
-              >
-                <div className="font-medium text-slate-200 text-[11px] group-hover:text-amber-300">Charlie CTO</div>
-                <div className="text-[10px] text-amber-400 font-mono">Role: CTO</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickSelectPersona("bob@acme.com")}
-                className="p-2 text-left rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-teal-500/30 transition group"
-              >
-                <div className="font-medium text-slate-200 text-[11px] group-hover:text-teal-300">Bob Lead</div>
-                <div className="text-[10px] text-teal-400 font-mono">Role: TEAM_LEAD</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickSelectPersona("rahul@acme.com")}
-                className="p-2 text-left rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-emerald-500/30 transition group"
-              >
-                <div className="font-medium text-slate-200 text-[11px] group-hover:text-emerald-300">Rahul Eng</div>
-                <div className="text-[10px] text-emerald-400 font-mono">Role: ENGINEER</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickSelectPersona("dave@acme.com")}
-                className="p-2 text-left rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-700 transition group"
-              >
-                <div className="font-medium text-slate-200 text-[11px] group-hover:text-slate-300">Dave Viewer</div>
-                <div className="text-[10px] text-slate-400 font-mono">Role: VIEWER (Read-only)</div>
-              </button>
-            </div>
-
-            <div className="pt-2 border-t border-slate-800/60">
-              <button
-                type="button"
-                onClick={() => handleQuickSelectPersona("bob@globex.com")}
-                className="w-full p-2 text-left rounded-xl bg-purple-950/20 hover:bg-purple-900/30 border border-purple-800/40 transition flex items-center justify-between"
-              >
-                <div>
-                  <span className="font-medium text-purple-200 text-[11px]">Bob Globex (Other Tenant)</span>
-                  <span className="block text-[10px] text-purple-400 font-mono">Tenant B · Cross-Tenant RBAC Test</span>
-                </div>
-                <Building2 className="w-4 h-4 text-purple-400" />
-              </button>
             </div>
           </div>
 

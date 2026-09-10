@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -25,8 +25,7 @@ interface HeaderProps {
 
 export function Header({ onSelectEntity, onMenuClick }: HeaderProps) {
   const router = useRouter();
-  const { currentUser, personas, switchPersona, logout, loading } = useAuth();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { currentUser, logout, loading } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -54,6 +53,10 @@ export function Header({ onSelectEntity, onMenuClick }: HeaderProps) {
         return "bg-teal-500/20 text-teal-300 border-teal-500/30";
       case "engineer":
         return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+      case "client_operator":
+        return "bg-cyan-500/20 text-cyan-300 border-cyan-500/30";
+      case "client_ai_admin":
+        return "bg-indigo-500/20 text-indigo-300 border-indigo-500/30";
       case "viewer":
         return "bg-slate-500/20 text-slate-300 border-slate-500/30";
       default:
@@ -119,63 +122,15 @@ export function Header({ onSelectEntity, onMenuClick }: HeaderProps) {
 
       {/* Right side */}
       <div className="flex items-center gap-3">
-        {/* Persona Switcher Dropdown (for quick testing/RBAC switching) */}
-        <div className="relative">
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            disabled={loading}
-            className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700/60 px-2.5 sm:px-3 py-1.5 rounded-lg transition text-slate-200"
-          >
-            <UserCheck className="w-3.5 h-3.5 text-blue-400" />
-            <span className="hidden sm:inline">
-              Persona: <strong>{currentUser?.name || "Alice PM"}</strong>
-            </span>
-            <span className={`text-[10px] uppercase font-mono px-1.5 py-0.5 rounded border ${getRoleColor(currentUser?.role)}`}>
-              {currentUser?.role || "PM"}
-            </span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-          </button>
-
-          {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-2 z-50">
-              <div className="px-3 py-2 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>Switch Seeded Persona</span>
-                <span className="text-[9px] font-mono text-emerald-400">RBAC Testing</span>
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {personas.map((persona) => {
-                  const isActive = currentUser?.email === persona.email;
-                  return (
-                    <button
-                      key={persona.email}
-                      onClick={() => {
-                        switchPersona(persona.email);
-                        setDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-800 transition ${
-                        isActive ? "bg-slate-800/80 text-white font-medium" : "text-slate-300"
-                      }`}
-                    >
-                      <div>
-                        <div className="font-medium text-slate-100">{persona.name}</div>
-                        <div className="text-[11px] text-slate-400">{persona.email}</div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`text-[10px] uppercase font-mono px-1.5 py-0.5 rounded border ${getRoleColor(persona.role)}`}>
-                          {persona.role}
-                        </span>
-                        {persona.organization_id !== "11111111-1111-1111-1111-111111111111" && (
-                          <span className="text-[9px] text-purple-400 bg-purple-950/60 border border-purple-800/40 px-1 rounded">
-                            Tenant B
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+        {/* Active Logged-in User Badge (Display only, no role switching) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium bg-slate-900 border border-slate-700/60 px-2.5 sm:px-3 py-1.5 rounded-lg text-slate-200 select-none">
+          <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+          <span className="hidden sm:inline text-slate-300">
+            Logged in: <strong className="text-white">{currentUser?.name || "Client"}</strong>
+          </span>
+          <span className={`text-[10px] uppercase font-mono px-1.5 py-0.5 rounded border ${getRoleColor(currentUser?.role)}`}>
+            {currentUser?.role || "CLIENT"}
+          </span>
         </div>
 
         {/* Notifications Popover */}
@@ -191,8 +146,8 @@ export function Header({ onSelectEntity, onMenuClick }: HeaderProps) {
               {getInitials(currentUser?.name)}
             </div>
             <div className="text-left hidden md:block">
-              <p className="text-xs font-medium text-slate-200">{currentUser?.name || "Alice PM"}</p>
-              <p className="text-[10px] text-slate-400 font-mono">{currentUser?.role || "PM"}</p>
+              <p className="text-xs font-medium text-slate-200">{currentUser?.name || "PMRG Admin"}</p>
+              <p className="text-[10px] text-slate-400 font-mono">{currentUser?.role || "ADMIN"}</p>
             </div>
             <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:block" />
           </button>
@@ -200,8 +155,8 @@ export function Header({ onSelectEntity, onMenuClick }: HeaderProps) {
           {userMenuOpen && (
             <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1.5 z-50 text-xs">
               <div className="px-3 py-2 border-b border-slate-800">
-                <p className="font-semibold text-white">{currentUser?.name || "Alice PM"}</p>
-                <p className="text-[11px] text-slate-400 font-mono truncate">{currentUser?.email || "alice@acme.com"}</p>
+                <p className="font-semibold text-white">{currentUser?.name || "PMRG Admin"}</p>
+                <p className="text-[11px] text-slate-400 font-mono truncate">{currentUser?.email || "admin@pmrgsolution.com"}</p>
               </div>
 
               <div className="py-1">

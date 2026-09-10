@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState } from "react";
 import { Bell, Check, CheckCheck, Clock, ExternalLink } from "lucide-react";
@@ -24,9 +24,11 @@ export default function NotificationsPage() {
   const fetchNotifications = async () => {
     try {
       const data = await api.getNotifications({ unread_only: unreadOnly, limit: 50 });
-      setNotifications(data || []);
+      const items = Array.isArray(data) ? data : (data?.notifications || []);
+      setNotifications(items);
     } catch (err) {
       console.error("Failed to load notifications:", err);
+      setNotifications([]);
     } finally {
       setLoading(false);
     }

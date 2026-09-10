@@ -21,16 +21,18 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/components/ui/ToastProvider";
 import { CalendarEvent, CalendarSlot } from "@/types/api";
 
 type ViewMode = "month" | "week" | "day" | "agenda" | "slots";
 
 export function CalendarView() {
   const { currentUser, hasPermission } = useAuth();
+  const { toast, confirmModal } = useToast();
   const canWriteCalendar = hasPermission("calendar.write");
 
   const [viewMode, setViewMode] = useState<ViewMode>("month");
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 8, 7)); // September 7, 2026 baseline
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -39,17 +41,17 @@ export function CalendarView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newDate, setNewDate] = useState("2026-09-08");
+  const [newDate, setNewDate] = useState("");
   const [newStartTime, setNewStartTime] = useState("10:00");
   const [newEndTime, setNewEndTime] = useState("10:30");
-  const [newAttendees, setNewAttendees] = useState("alice@acme.com, rahul@acme.com");
+  const [newAttendees, setNewAttendees] = useState("pm@pmrgsolution.com, engineer@pmrgsolution.com");
   const [newMeetingType, setNewMeetingType] = useState("review");
   const [newLocation, setNewLocation] = useState("Google Meet");
   const [creating, setCreating] = useState(false);
 
   // Slot Finder State
   const [slots, setSlots] = useState<CalendarSlot[]>([]);
-  const [slotAttendees, setSlotAttendees] = useState("alice@acme.com, rahul@acme.com");
+  const [slotAttendees, setSlotAttendees] = useState("pm@pmrgsolution.com, engineer@pmrgsolution.com");
   const [slotDuration, setSlotDuration] = useState(30);
   const [searchingSlots, setSearchingSlots] = useState(false);
 
@@ -68,6 +70,12 @@ export function CalendarView() {
   useEffect(() => {
     fetchEvents();
   }, [currentUser?.organization_id]);
+
+  useEffect(() => {
+    if (!newDate) {
+      setNewDate(getDateString(new Date()));
+    }
+  }, [newDate]);
 
   const searchSlots = async () => {
     setSearchingSlots(true);
@@ -103,13 +111,15 @@ export function CalendarView() {
       });
 
       setShowCreateModal(false);
+      const bookedTitle = newTitle;
       // Reset form
       setNewTitle("");
       setNewDescription("");
+      toast.success("Meeting Scheduled", `"${bookedTitle}" has been scheduled successfully.`);
       await fetchEvents();
     } catch (err) {
       console.error("Failed to create event:", err);
-      alert(err instanceof Error ? err.message : "Failed to create event");
+      toast.error("Failed to Create Event", err instanceof Error ? err.message : "Failed to create event");
     } finally {
       setCreating(false);
     }
@@ -117,15 +127,23 @@ export function CalendarView() {
 
   const handleCancelMeeting = async (eventId: string) => {
     if (!canWriteCalendar) return;
-    if (!confirm("Are you sure you want to cancel this meeting?")) return;
+    const confirmed = await confirmModal({
+      title: "Cancel Meeting",
+      message: `Are you sure you want to cancel "${selectedEvent?.title || "this meeting"}"? All participants will be notified of the cancellation.`,
+      confirmText: "Yes, Cancel Meeting",
+      cancelText: "Keep Meeting",
+      variant: "danger",
+    });
+    if (!confirmed) return;
 
     try {
       await api.cancelCalendarEvent(eventId, "Cancelled by user via Calendar UI");
+      toast.success("Meeting Cancelled", `"${selectedEvent?.title || "Meeting"}" was successfully cancelled.`);
       setSelectedEvent(null);
       await fetchEvents();
     } catch (err) {
       console.error("Failed to cancel event:", err);
-      alert(err instanceof Error ? err.message : "Failed to cancel meeting");
+      toast.error("Cancellation Failed", err instanceof Error ? err.message : "Failed to cancel meeting");
     }
   };
 
@@ -310,7 +328,7 @@ export function CalendarView() {
             <ChevronRight className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setCurrentDate(new Date(2026, 8, 7))}
+            onClick={() => setCurrentDate(new Date())}
             className="ml-2 text-xs font-medium text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20"
           >
             Today
@@ -361,7 +379,8 @@ export function CalendarView() {
               const dayNum = i + 1;
               const cellDate = new Date(year, month, dayNum);
               const dayEvents = events.filter((e) => isEventOnDate(e, cellDate));
-              const isToday = dayNum === 7 && month === 8;
+              const now = new Date();
+              const isToday = dayNum === now.getDate() && month === now.getMonth() && year === now.getFullYear();
 
               return (
                 <div
@@ -502,7 +521,8 @@ export function CalendarView() {
             {getWeekDays(currentDate).map((dayDate, idx) => {
               const dayEvents = events.filter((e) => isEventOnDate(e, dayDate));
               const isSelected = getDateString(dayDate) === getDateString(currentDate);
-              const isToday = dayDate.getDate() === 7 && dayDate.getMonth() === 8;
+              const now = new Date();
+              const isToday = dayDate.getDate() === now.getDate() && dayDate.getMonth() === now.getMonth() && dayDate.getFullYear() === now.getFullYear();
 
               return (
                 <div
@@ -858,7 +878,7 @@ export function CalendarView() {
                 <input
                   type="text"
                   required
-                  placeholder="alice@acme.com, rahul@acme.com"
+                  placeholder="pm@pmrgsolution.com, engineer@pmrgsolution.com"
                   value={newAttendees}
                   onChange={(e) => setNewAttendees(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"

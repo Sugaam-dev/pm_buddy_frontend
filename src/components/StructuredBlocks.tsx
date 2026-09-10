@@ -13,6 +13,7 @@ import {
 import { ActionProposal, Approval, CalendarSlot, Project, StructuredBlock, Task, Ticket } from "@/types/api";
 import { formatCurrency } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/ToastProvider";
 
 interface StructuredBlockProps {
   block: StructuredBlock;
@@ -61,6 +62,12 @@ function BlockItem({
       return <ApprovalListBlock title={block.title} data={block.data} />;
     case "ticket_list":
       return <TicketListBlock title={block.title} data={block.data} />;
+    case "table":
+      // If table data is a list of tickets, render rich TicketListBlock
+      if (Array.isArray(block.data) && block.data.length > 0 && ("ticket_number" in block.data[0] || "severity" in block.data[0])) {
+        return <TicketListBlock title={block.title} data={block.data} />;
+      }
+      return <GenericTableBlock title={block.title} data={block.data} />;
     case "calendar_slots":
       return <CalendarSlotsBlock title={block.title} slots={block.slots || []} onSelect={onActionTrigger} />;
     case "action_confirmation":
@@ -193,21 +200,85 @@ function ApprovalListBlock({ title, data }: { title?: string; data: Approval[] }
 }
 
 // 4. Ticket List Block
-function TicketListBlock({ title, data }: { title?: string; data: Ticket[] }) {
+function TicketListBlock({ title, data }: { title?: string; data: any[] }) {
+  if (!Array.isArray(data) || data.length === 0) return null;
   return (
     <div className="border border-slate-800 bg-slate-900/90 rounded-xl p-4 shadow">
-      {title && <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">{title}</h4>}
+      {title && <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">{title} ({data.length})</h4>}
       <div className="space-y-2">
-        {data.map((ticket) => (
-          <div key={ticket.id} className="p-3 rounded-lg bg-slate-800/60 border border-slate-800">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-mono text-blue-400 font-medium">{ticket.ticket_number}</span>
-              <span className="capitalize text-slate-400">{ticket.severity}</span>
+        {data.map((ticket, idx) => {
+          const isBreached = ticket.is_breached || ticket.sla_status === "breached";
+          const isWarning = ticket.sla_status === "warning";
+          return (
+            <div key={ticket.id || idx} className="p-3 rounded-lg bg-slate-800/60 border border-slate-800 space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-blue-400 font-bold">{ticket.ticket_number || `TCK-${idx + 101}`}</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase ${
+                    ticket.severity === "critical"
+                      ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+                      : ticket.severity === "high"
+                      ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                      : "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                  }`}>
+                    {ticket.severity || "normal"}
+                  </span>
+                  {ticket.status && (
+                    <span className="text-[10px] text-slate-400 font-mono capitalize bg-slate-900 px-1.5 py-0.5 rounded">
+                      {ticket.status}
+                    </span>
+                  )}
+                </div>
+                {isBreached ? (
+                  <span className="text-[10px] font-bold text-rose-400 bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/30">
+                    ⚠️ SLA Breached
+                  </span>
+                ) : isWarning ? (
+                  <span className="text-[10px] font-bold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                    ⚡ At Risk
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                    ✓ SLA Healthy
+                  </span>
+                )}
+              </div>
+              <p className="text-sm font-medium text-slate-100">{ticket.title}</p>
+              {ticket.affected_service && (
+                <p className="text-[11px] text-slate-400 font-mono">Service: {ticket.affected_service}</p>
+              )}
             </div>
-            <p className="text-sm font-medium text-slate-100 mt-1">{ticket.title}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+function GenericTableBlock({ title, data }: { title?: string; data: any }) {
+  if (!Array.isArray(data) || data.length === 0) return null;
+  const keys = Object.keys(data[0] || {}).slice(0, 4);
+  return (
+    <div className="border border-slate-800 bg-slate-900/90 rounded-xl p-4 shadow overflow-x-auto">
+      {title && <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">{title}</h4>}
+      <table className="w-full text-left text-xs">
+        <thead>
+          <tr className="border-b border-slate-800 text-slate-400 font-mono">
+            {keys.map((k) => (
+              <th key={k} className="p-2 capitalize">{k.replace("_", " ")}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-800/60">
+          {data.map((row, i) => (
+            <tr key={i} className="text-slate-200">
+              {keys.map((k) => (
+                <td key={k} className="p-2 truncate max-w-xs">{String(row[k] ?? "")}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -249,6 +320,7 @@ function ActionConfirmationBlock({
   block: StructuredBlock;
   onConfirmed?: () => void;
 }) {
+  const { toast } = useToast();
   const [status, setStatus] = useState<"pending" | "executing" | "completed" | "error" | "expired" | "dismissed">("pending");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -259,15 +331,18 @@ function ActionConfirmationBlock({
     try {
       await api.confirmAction(block.action_id);
       setStatus("completed");
+      toast.success("Action Executed", "The requested action has been confirmed and executed.");
       if (onConfirmed) onConfirmed();
     } catch (err: any) {
       const msg: string = err.message || "Failed to execute action.";
       // 404 = action expired / not found in DB (stale session state)
       if (msg.toLowerCase().includes("not found") || msg.includes("404")) {
         setStatus("expired");
+        toast.warning("Proposal Expired", "This action proposal has expired or is no longer valid.");
       } else {
         setStatus("error");
         setErrorMessage(msg);
+        toast.error("Execution Failed", msg);
       }
     }
   };
@@ -276,6 +351,7 @@ function ActionConfirmationBlock({
     if (!block.action_id) return;
     try {
       await api.cancelAction(block.action_id);
+      toast.info("Action Cancelled", "The proposed action was dismissed.");
     } catch {
       // Ignore cancel errors — action may already be gone
     }

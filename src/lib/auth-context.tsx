@@ -136,6 +136,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem("pm_buddy_access_token");
     localStorage.removeItem("pm_buddy_active_persona");
+    localStorage.removeItem("pm_buddy_chat_messages");
+    localStorage.removeItem("pm_buddy_conversation_id");
     api.setToken("");
     setCurrentUser(null);
   }, []);

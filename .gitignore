@@ -1,82 +1,66 @@
-# ================================
-# PM Buddy Frontend - Next.js/React
-# ================================
+# ================================================
+# PM Buddy Frontend - .gitignore
+# Next.js / React / TypeScript production safety rules
+# ================================================
 
-# Environment / secrets
+# 1. Environment & Secrets
 .env
 .env.*
 !.env.example
 !.env.template
+*.pem
+*.key
+*.token
+*.credentials
 
-# Node dependencies
+# 2. Node Dependencies
 node_modules/
 
-# Next.js
+# 3. Next.js Build Outputs & Caches
 .next/
 out/
-
-# Production build
 dist/
-
-# TypeScript
 *.tsbuildinfo
-
-# Vite
 .vite/
+.vercel/
 
-# Package manager logs
+# 4. Package Manager Logs & Caches
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-
-# Package manager caches
 .npm/
 .pnpm-store/
 
-# Yarn
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# Testing
+# 5. Testing & Coverage Reports
 coverage/
 test-results/
 playwright-report/
 blob-report/
 
-# Logs
+# 6. Logs & Temporary Files
 *.log
 logs/
-
-# Temporary files
 tmp/
 temp/
 .cache/
 *.tmp
 *.temp
 
-# IDE
+# 7. IDE & OS Metadata
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Local development
-.vercel/
-
-# Generated files
+# 8. Source Maps (Production Option)
 *.map
 
-# Local AI/cache files
+# 9. Local AI & Tool Caches
 .ai/
 .ai-cache/
 .agent-cache/
