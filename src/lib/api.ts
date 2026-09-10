@@ -1,6 +1,6 @@
 import { AIResponse, Approval, Project, Risk, Task, Ticket } from "@/types/api";
 
-const API_BASE = process.env.BACKEND_URL || "http://localhost:8000";
+const API_BASE = process.env.BACKEND_URL ;
 
 class ApiClient {
   private token: string | null = null;
